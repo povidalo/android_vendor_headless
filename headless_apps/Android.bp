@@ -19,7 +19,7 @@ prebuilt_etc {
     filename: "05-wifi-country",
 }
 
-// Installs the APKs bundled in /system/etc/headless/apps (see device.mk) and
+// Installs the APKs bundled in /system/etc/headless/apps (see headless.mk) and
 // grants them everything they request.
 prebuilt_etc {
     name: "headless_boot_10-apps",
@@ -81,4 +81,4 @@ prebuilt_etc {
 
 // The SSH public keys allowed to log in (termux_authorized_keys) are not in git:
 // the Mac build script copies the build host's key in before every build, and
-// device.mk installs the file only if it exists.
+// headless.mk installs the file only if it exists.

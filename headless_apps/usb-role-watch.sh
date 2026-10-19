@@ -20,6 +20,9 @@
 # reports the devices that are already there. Since the server never sleeps
 # (see 02-stay-awake), the other USB devices are kept from autosuspending too
 # (NICs, disks, serial adapters): no wake-up latency, no lost events.
+#
+# Without a writable Type-C port_type (a micro-USB phone such as mido), there
+# is no role to fix: only the keep-awake part runs.
 
 TC=/sys/class/typec/port0
 LOG=/data/local/usb-boot.log
@@ -44,12 +47,14 @@ keep_usb_awake() { # every USB device, root hubs included; logs woken hubs
     done
 }
 
-[ -w "$TC/port_type" ] || { log "no writable $TC/port_type, watcher not running"; exit 0; }
+roles=1
+[ -w "$TC/port_type" ] || { roles=0; log "no writable $TC/port_type: only keeping USB devices awake"; }
 
 bad=0 flips=0 calm=0
 while :; do
     sleep 3
     keep_usb_awake
+    [ $roles = 1 ] || continue
     r=$(role)
     case $r in
     host) [ "$(devices)" -gt 0 ] && ok=1 || ok=0; grace=$HOST_GRACE ;;

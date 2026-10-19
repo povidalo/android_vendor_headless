@@ -1,6 +1,6 @@
 /*
  * headless_su - root daemon + su client for a headless, single-user
- * LineageOS server (Galaxy S8+, dream2lte).
+ * LineageOS server (Galaxy S8+ dream2lte, Redmi Note 4 mido).
  *
  * Any caller that knows the root password gets root. There is no per-app
  * permission management (no prompts, no allowlist, no manager app); the

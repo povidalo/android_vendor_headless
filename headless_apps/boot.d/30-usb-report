@@ -12,7 +12,7 @@ snapshot() {
         echo "$(basename "$d") $(cat "$d/idVendor"):$(cat "$d/idProduct") $(cat "$d/speed")M $(cat "$d/manufacturer" 2>/dev/null) $(cat "$d/product" 2>/dev/null)"
     done
     echo "ttys: $(ls /dev/ttyACM* /dev/ttyUSB* 2>/dev/null | tr '\n' ' ')"
-    echo "disks: $(ls /sys/block | grep -E '^sd[e-z]' | tr '\n' ' ')"
+    echo "disks: $(for b in /sys/block/sd*; do case $(readlink -f "$b") in */usb*) printf '%s ' "${b##*/}" ;; esac; done)"
     echo "net: $(ip -br addr | grep -E '^(eth|wlan)' | tr -s ' ' | tr '\n' ';')"
     echo "usb-c: $(dumpsys usb | grep -m1 current_mode | tr -d ' ') ccic_state=$(cat /sys/class/sec/ccic/state 2>/dev/null)"
 }
