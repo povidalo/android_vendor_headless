@@ -7,8 +7,10 @@
 #   e.g. build-in-vm.sh dream2lte bacon | build-in-vm.sh mido kernel
 #
 # All devices share one out/ (host tools are built once; each device has its
-# own out/target/product/DEVICE). Switching devices regenerates the Soong and
-# Kati ninja files once.
+# own out/target/product/DEVICE). Their 64-bit objects share the same
+# out/soong/.intermediates paths but get different compile commands, so the
+# first build after switching devices recompiles most of them (about 2.5 h
+# under Rosetta); builds that stay on one device are incremental.
 if [ $# -lt 2 ]; then
     sed -n '6,7s/^# *//p' "$0" >&2
     exit 2
