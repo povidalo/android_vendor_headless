@@ -21,8 +21,12 @@ locksettings set-disabled true >/dev/null 2>&1
 # kernels (vendor/headless users) enable NFS client/server and SysV IPC
 # (Docker, CIFS/NFS mounts), which Android's kernel requirements forbid
 # (VINTF: CONFIG_NFSD, CONFIG_NFS_FS, CONFIG_SYSVIPC required n). The setting
-# is read at system start, so it takes effect from the second boot on.
+# is read when dialogs are about to show, so on the very first boot the
+# warning is already up when this runs: close it (error dialogs close on
+# CLOSE_SYSTEM_DIALOGS, see BaseErrorDialog; so do the notification shade
+# and recents, harmless at boot).
 settings put global hide_error_dialogs 1
+am broadcast -a android.intent.action.CLOSE_SYSTEM_DIALOGS >/dev/null 2>&1
 
 installed() { pm path "$1" >/dev/null 2>&1; }
 
