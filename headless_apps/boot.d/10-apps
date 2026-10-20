@@ -15,6 +15,14 @@ device_config put permissions auto_revoke_unused_threshold_millis2 3153600000000
 device_config put activity_manager max_phantom_processes 2147483647
 settings put global settings_enable_monitor_phantom_procs false
 locksettings set-disabled true >/dev/null 2>&1
+# No system error dialogs: app crash/ANR dialogs (nobody there to tap them;
+# a crashing app is just restarted) and the boot-time "There's an internal
+# problem with your device" warning. That one appears because the server
+# kernels (vendor/headless users) enable NFS client/server and SysV IPC
+# (Docker, CIFS/NFS mounts), which Android's kernel requirements forbid
+# (VINTF: CONFIG_NFSD, CONFIG_NFS_FS, CONFIG_SYSVIPC required n). The setting
+# is read at system start, so it takes effect from the second boot on.
+settings put global hide_error_dialogs 1
 
 installed() { pm path "$1" >/dev/null 2>&1; }
 
