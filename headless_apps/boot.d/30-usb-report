@@ -18,10 +18,13 @@ snapshot() {
 }
 
 (
+    # Permanent redirections: with ( ... ) >/dev/null & the subshell keeps
+    # copies of the caller's stdout/stderr, and a run by hand (su -c) hangs.
+    exec </dev/null >/dev/null 2>&1
     sleep 60
     snapshot >>"$LOG" 2>&1
     sleep 240
     snapshot >>"$LOG" 2>&1
     tail -n 3000 "$LOG" >"$LOG.tmp" && mv -f "$LOG.tmp" "$LOG"
     chmod 644 "$LOG"
-) </dev/null >/dev/null 2>&1 &
+) &

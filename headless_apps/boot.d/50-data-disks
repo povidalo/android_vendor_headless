@@ -15,7 +15,9 @@
 # the Termux user (uid/gid, umask 0007), so Termux can use them. ext4 is
 # checked with e2fsck -p (fixes what is safe to fix) before mounting. A disk
 # that disappears is unmounted (lazily). Mounts are made in the global mount
-# namespace, so apps see them too.
+# namespace, so apps see them too. Only USB disks, SD cards and loop devices
+# (disk images) are ever touched, never the phone's own storage, and never a
+# disk that is mounted elsewhere or held by device-mapper/md.
 #
 # Runs as a background loop every 5 s, so disks plugged in later, edits to
 # disks.conf and vold's own mount attempts are all handled. Log:
@@ -36,23 +38,47 @@ log() { echo "$(date '+%F %T') $*" >>"$LOG"; chmod 644 "$LOG"; }
 #   4b3c2e1a-1234-4abc-9def-0123456789ab   storage
 EOF
 
+# USB disks, SD cards and loop devices only, never internal storage.
+removable() { # NAME (as in /sys/class/block)
+    case $1 in loop*) return 0 ;; esac
+    p=$(readlink -f "/sys/class/block/$1") || return 1
+    case $p in */usb[0-9]*/*) return 0 ;; esac
+    [ "$(cat "${p%%/block/*}/type" 2>/dev/null)" = SD ]
+}
+
+# Mount points of a block device, by device number: the same disk is mounted
+# under other names (vold uses its own nodes, /dev/block/vold/public:8,1).
+mounts_of() { # NAME
+    mm=$(cat "/sys/class/block/$1/dev" 2>/dev/null) || return
+    awk -v mm="$mm" '$3 == mm { print $5 }' /proc/self/mountinfo
+}
+
 mount_one() { # uuid name opts dev type
-    uuid=$1 name=$2 opts=$3 dev=$4 type=$5
+    uuid=$1 name=$2 opts=$3 dev=$4 type=$5 n=${4##*/}
     case $name in /*) mp=$name ;; *) mp=$BASE/$name ;; esac
     mountpoint -q "$mp" && return 0
+    if ! removable "$n"; then
+        log "$name: $dev ($uuid) is not a USB disk, SD card or loop device, not touching it"
+        return 1
+    fi
     # vold got it first: hand it back (vold leaves it alone until a replug)
-    if grep -q "^$dev " /proc/mounts; then
+    if [ -n "$(mounts_of "$n")" ]; then
         vol=$(sm list-volumes public 2>/dev/null | awk -v u="$uuid" 'toupper($3) == toupper(u) { print $1; exit }')
         if [ -n "$vol" ]; then
             sm unmount "$vol" >/dev/null 2>&1
             i=0
-            while grep -q "^$dev " /proc/mounts && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
+            while [ -n "$(mounts_of "$n")" ] && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
         fi
-        if grep -q "^$dev " /proc/mounts; then
-            log "$name: $dev ($uuid) is mounted elsewhere ($(grep "^$dev " /proc/mounts | awk '{ print $2 }' | head -1)), not taking it"
+        at=$(mounts_of "$n" | head -1)
+        if [ -n "$at" ]; then
+            log "$name: $dev ($uuid) is mounted elsewhere ($at), not taking it"
             return 1
         fi
         log "$name: took $dev from vold (${vol:-?})"
+    fi
+    if [ -n "$(ls "/sys/class/block/$n/holders" 2>/dev/null)" ]; then
+        log "$name: $dev ($uuid) is held by $(echo $(ls "/sys/class/block/$n/holders")), not taking it"
+        return 1
     fi
     mkdir -p "$BASE" && chmod 0711 "$BASE"
     mkdir -p "$mp"
@@ -80,6 +106,9 @@ mount_one() { # uuid name opts dev type
 }
 
 (
+    # Permanent redirections: with ( ... ) >/dev/null & the subshell keeps
+    # copies of the caller's stdout/stderr, and a run by hand (su -c) hangs.
+    exec </dev/null >/dev/null 2>&1
     failed= cleared=0
     while :; do
         up=$(cut -d. -f1 /proc/uptime)
@@ -91,7 +120,8 @@ mount_one() { # uuid name opts dev type
                 case $uuid in "" | \#*) continue ;; esac
                 [ -n "$name" ] || continue
                 case $name in /*) mp=$name ;; *) mp=$BASE/$name ;; esac
-                line=$(printf '%s\n' "$ids" | grep -i "UUID=\"$uuid\"" | head -1)
+                # exact UUID= field (not PARTUUID=, not a prefix)
+                line=$(printf '%s\n' "$ids" | awk -v u="UUID=\"$uuid\"" '{ for (i = 2; i <= NF; i++) if (toupper($i) == toupper(u)) { print; exit } }')
                 if [ -z "$line" ]; then
                     if mountpoint -q "$mp"; then
                         umount -l "$mp" && log "$name: disk $uuid gone, unmounted $mp"
@@ -109,4 +139,4 @@ EOC
         fi
         sleep 5
     done
-) </dev/null >/dev/null 2>&1 &
+) &

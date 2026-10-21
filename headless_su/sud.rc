@@ -39,3 +39,11 @@ on boot
     # boot script 02-stay-awake. Release by hand, e.g. to measure power:
     #   echo headless_server > /sys/power/wake_unlock
     write /sys/power/wake_lock headless_server
+
+# Log buffers of 2 MB each instead of 256 KB (compressed: ~8 MB of text for
+# logcat -d). Android 13's logd ignores the ro/persist.logd.size properties
+# (b/196856709, GetBufferSizeFromProperties), only a runtime 'logcat -G' sets
+# them, and 'logd --reinit' (post-fs-data) resets them. So: after the reinit,
+# and again whenever logd restarts (logd.ready goes false, then true).
+on property:init.svc.logd-reinit=stopped && property:logd.ready=true
+    exec_background u:r:sud:s0 logd log -- /system/bin/logcat -b all -G 2M

@@ -67,12 +67,12 @@ PRODUCT_SYSTEM_PROPERTIES += \
 # Persistent logs: logcatd writes all log buffers (main, system, crash,
 # events, radio, kernel) to /data/misc/logd/logcat* and keeps them across
 # reboots, 64 files of 1 MB at most; 'logpersist.stop' turns it off. The
-# in-memory buffers grow from 256 KB to 2 MB each, for logcat -d.
+# in-memory buffers grow from 256 KB to 2 MB each, for logcat -d; that is done
+# in headless_su/sud.rc, because Android 13's logd ignores ro.logd.size.
 PRODUCT_SYSTEM_PROPERTIES += \
     persist.logd.logpersistd=logcatd \
     persist.logd.logpersistd.size=64 \
-    persist.logd.logpersistd.rotate_kbytes=1024 \
-    ro.logd.size=2M
+    persist.logd.logpersistd.rotate_kbytes=1024
 
 # Apps installed on first boot by 10-apps (Termux, its plugins, F-Droid): not
 # in git (Termux alone is 109 MB), copied in by the Mac build script as

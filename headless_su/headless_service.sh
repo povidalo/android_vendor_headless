@@ -181,7 +181,8 @@ status() {
         sp=$(pid_of "$name" pid); p=$(prog_pid "$name")
         if alive "$sp"; then
             if alive "$p"; then
-                st="running, pid $p, up $(ps -o etime= -p "$p" 2>/dev/null | tr -d ' ')"
+                # toybox ps prints a blank header line even for etime=
+                st="running, pid $p, up $(ps -o etime= -p "$p" 2>/dev/null | tail -n 1 | tr -d ' ')"
             else st="restarting"; fi
         else st="stopped"; fi
         printf '%-16s %s, user %s, restarts %s: %s\n' "$name" "$st" "$(cat "$DIR/$name.user" 2>/dev/null)" \

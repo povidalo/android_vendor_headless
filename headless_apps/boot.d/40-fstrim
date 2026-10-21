@@ -20,6 +20,9 @@ WEEK=604800
 log() { echo "$(date '+%F %T') 40-fstrim: $*" >>"$LOG"; }
 
 (
+    # Permanent redirections: with ( ... ) >/dev/null & the subshell keeps
+    # copies of the caller's stdout/stderr, and a run by hand (su -c) hangs.
+    exec </dev/null >/dev/null 2>&1
     mkdir -p "${STAMP%/*}" && chmod 0700 "${STAMP%/*}"
     sleep 600
     while :; do
@@ -38,4 +41,4 @@ log() { echo "$(date '+%F %T') 40-fstrim: $*" >>"$LOG"; }
         fi
         sleep 21600
     done
-) </dev/null >/dev/null 2>&1 &
+) &
