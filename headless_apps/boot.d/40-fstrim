@@ -1,0 +1,41 @@
+#!/system/bin/sh
+# Headless ROM boot script: trim the flash storage once a week. Android only
+# trims in its idle maintenance, which needs the device idle *and* charging;
+# with Doze off, and a server that is battery-fed or never idle, that may
+# never happen, and an untrimmed eMMC/UFS gets slower and wears faster.
+# 'sm fstrim' asks vold to trim /data (and adopted storage) the same way; vold
+# logs the result (logcat -s vold: "Trimmed ... bytes ... in ...ms").
+#
+# A background loop starts 10 min after boot and then checks every 6 h. It
+# trims when a week has passed since the last run (stamp in
+# /data/misc/headless/fstrim.last, kept across reboots), or when the stamp
+# lies in the future (the clock is not set yet after a boot without network:
+# trimming once too often is harmless). The result goes to
+# /data/local/boot.d.log.
+
+LOG=/data/local/boot.d.log
+STAMP=/data/misc/headless/fstrim.last
+WEEK=604800
+
+log() { echo "$(date '+%F %T') 40-fstrim: $*" >>"$LOG"; }
+
+(
+    mkdir -p "${STAMP%/*}" && chmod 0700 "${STAMP%/*}"
+    sleep 600
+    while :; do
+        now=$(date +%s)
+        last=$(cat "$STAMP" 2>/dev/null || echo 0)
+        age=$((now - last))
+        if [ "$age" -ge $WEEK ] || [ "$age" -lt 0 ]; then
+            if out=$(sm fstrim 2>&1); then
+                echo "$now" >"$STAMP"
+                sleep 120 # vold trims in the background
+                res=$(logcat -d -s vold 2>/dev/null | grep -i "trimmed" | tail -n 3 | sed 's/.*vold *: *//' | tr '\n' ';')
+                log "trimmed (last run $([ "$last" = 0 ] && echo never || date -d "@$last" '+%F' 2>/dev/null)): ${res:-see logcat -s vold}"
+            else
+                log "sm fstrim failed: $out"
+            fi
+        fi
+        sleep 21600
+    done
+) </dev/null >/dev/null 2>&1 &

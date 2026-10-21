@@ -1,0 +1,112 @@
+#!/system/bin/sh
+# Headless ROM boot script: mount the server's data disks by UUID, outside
+# vold. vold auto-mounts every USB disk with a known filesystem as a public
+# volume (/mnt/media_rw/UUID, noexec, the media scanner indexes it), and
+# kernel names like sda move between boots. The disks listed in
+# /data/local/disks.conf are taken from vold instead and mounted where they
+# belong:
+#
+#   # UUID (from blkid)                    NAME      [extra mount options]
+#   4b3c2e1a-1234-4abc-9def-0123456789ab   storage
+#   1A2B-3C4D                              stick     ro
+#
+# NAME is mounted at /data/local/disks/NAME (or at NAME if it is an absolute
+# path). Options default to noatime; vfat, exfat and ntfs are also owned by
+# the Termux user (uid/gid, umask 0007), so Termux can use them. ext4 is
+# checked with e2fsck -p (fixes what is safe to fix) before mounting. A disk
+# that disappears is unmounted (lazily). Mounts are made in the global mount
+# namespace, so apps see them too.
+#
+# Runs as a background loop every 5 s, so disks plugged in later, edits to
+# disks.conf and vold's own mount attempts are all handled. Log:
+# /data/local/disks.log (world-readable).
+
+CONF=/data/local/disks.conf
+BASE=/data/local/disks
+LOG=/data/local/disks.log
+T=/data/data/com.termux
+
+log() { echo "$(date '+%F %T') $*" >>"$LOG"; chmod 644 "$LOG"; }
+
+[ -f "$CONF" ] || cat >"$CONF" <<'EOF'
+# Data disks mounted by the ROM (50-data-disks), outside vold, by UUID:
+#   UUID (from blkid)                      NAME      [extra mount options]
+# NAME: mounted at /data/local/disks/NAME (or an absolute path).
+# Example:
+#   4b3c2e1a-1234-4abc-9def-0123456789ab   storage
+EOF
+
+mount_one() { # uuid name opts dev type
+    uuid=$1 name=$2 opts=$3 dev=$4 type=$5
+    case $name in /*) mp=$name ;; *) mp=$BASE/$name ;; esac
+    mountpoint -q "$mp" && return 0
+    # vold got it first: hand it back (vold leaves it alone until a replug)
+    if grep -q "^$dev " /proc/mounts; then
+        vol=$(sm list-volumes public 2>/dev/null | awk -v u="$uuid" 'toupper($3) == toupper(u) { print $1; exit }')
+        if [ -n "$vol" ]; then
+            sm unmount "$vol" >/dev/null 2>&1
+            i=0
+            while grep -q "^$dev " /proc/mounts && [ $i -lt 10 ]; do sleep 1; i=$((i + 1)); done
+        fi
+        if grep -q "^$dev " /proc/mounts; then
+            log "$name: $dev ($uuid) is mounted elsewhere ($(grep "^$dev " /proc/mounts | awk '{ print $2 }' | head -1)), not taking it"
+            return 1
+        fi
+        log "$name: took $dev from vold (${vol:-?})"
+    fi
+    mkdir -p "$BASE" && chmod 0711 "$BASE"
+    mkdir -p "$mp"
+    o=noatime
+    case $type in
+    ext2 | ext3 | ext4)
+        e2fsck -p "$dev" >>"$LOG" 2>&1
+        rc=$?
+        [ $rc -ge 4 ] && { log "$name: e2fsck exit $rc on $dev, not mounting (fix it by hand: e2fsck -f $dev)"; return 1; }
+        ;;
+    vfat | exfat | ntfs)
+        tu=$(stat -c %u "$T" 2>/dev/null)
+        [ -n "$tu" ] && [ "$tu" != 0 ] && o="$o,uid=$tu,gid=$tu,umask=0007"
+        ;;
+    esac
+    [ -n "$opts" ] && o="$o,$opts"
+    for t in $type $([ "$type" = exfat ] && echo sdfat) $([ "$type" = ntfs ] && echo ntfs3); do
+        if err=$(mount -t "$t" -o "$o" "$dev" "$mp" 2>&1); then
+            log "$name: mounted $dev ($t, $uuid) at $mp, options $o"
+            return 0
+        fi
+    done
+    log "$name: mounting $dev ($type) at $mp failed: $err"
+    return 1
+}
+
+(
+    failed= cleared=0
+    while :; do
+        up=$(cut -d. -f1 /proc/uptime)
+        # failed disks are retried (and their failure logged) once a minute
+        [ $((up - cleared)) -ge 60 ] && { failed=; cleared=$up; }
+        if [ -f "$CONF" ]; then
+            ids=$(blkid 2>/dev/null)
+            while read -r uuid name opts; do
+                case $uuid in "" | \#*) continue ;; esac
+                [ -n "$name" ] || continue
+                case $name in /*) mp=$name ;; *) mp=$BASE/$name ;; esac
+                line=$(printf '%s\n' "$ids" | grep -i "UUID=\"$uuid\"" | head -1)
+                if [ -z "$line" ]; then
+                    if mountpoint -q "$mp"; then
+                        umount -l "$mp" && log "$name: disk $uuid gone, unmounted $mp"
+                    fi
+                    continue
+                fi
+                mountpoint -q "$mp" && continue
+                dev=${line%%:*}
+                type=$(printf '%s\n' "$line" | sed -n 's/.* TYPE="\([^"]*\)".*/\1/p')
+                case " $failed " in *" $uuid "*) continue ;; esac
+                mount_one "$uuid" "$name" "$opts" "$dev" "$type" || failed="$failed $uuid"
+            done <<EOC
+$(cat "$CONF")
+EOC
+        fi
+        sleep 5
+    done
+) </dev/null >/dev/null 2>&1 &

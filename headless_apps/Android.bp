@@ -42,6 +42,23 @@ prebuilt_etc {
     filename: "30-usb-report",
 }
 
+// Weekly fstrim (sm fstrim): Android trims only in idle maintenance, which
+// needs the device idle and charging.
+prebuilt_etc {
+    name: "headless_boot_40-fstrim",
+    src: "boot.d/40-fstrim",
+    sub_dir: "headless/boot.d",
+    filename: "40-fstrim",
+}
+
+// Data disks from /data/local/disks.conf, mounted by UUID outside vold.
+prebuilt_etc {
+    name: "headless_boot_50-data-disks",
+    src: "boot.d/50-data-disks",
+    sub_dir: "headless/boot.d",
+    filename: "50-data-disks",
+}
+
 // USB-C role watcher, run by the init service headless_usb_role (sud.rc):
 // re-attaches the port in the other role when the current role does not work.
 prebuilt_etc {

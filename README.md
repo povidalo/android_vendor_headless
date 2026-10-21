@@ -28,6 +28,12 @@ include vendor/headless/BoardConfigHeadless.mk
   USB snapshots), the USB watcher (USB-C role fix where there is a Type-C port;
   keeps USB devices from autosuspending everywhere), and two static overlays
   (no Doze, no Wi-Fi suspend optimizations).
+- More ROM boot scripts:
+  - `40-fstrim`: a weekly `sm fstrim`. Android only trims in idle maintenance, which needs the device idle and charging.
+  - `50-data-disks`: data disks listed in `/data/local/disks.conf` (`UUID NAME [options]`), mounted by UUID at `/data/local/disks/NAME`, outside vold (no auto-mount, no media scanning). Log: `/data/local/disks.log`.
+- `headless_service` (`/system/bin`): keeps server programs running from `/data/local/boot.d` scripts. `headless_service start NAME [-u termux|root] -- 'command line'` starts a supervised service. It restarts the program when it exits, logs to `/data/local/services/NAME.log`, and runs outside any app, so Android's low-memory killer leaves it alone. Also `stop`, `restart`, `status` and `log`.
+- `remove_packages/`: drops apps a server does without (OTA Updater, FM radio, backup, wallpaper apps, Calculator, Recorder).
+- Stability: Rescue Party is off (`persist.sys.disable_rescue`), so repeated crashes never end in a factory-reset prompt in recovery. Logs persist across reboots in `/data/misc/logd` (logcatd, 64 MB at most; `logpersist.stop` turns it off).
 - `adb/adb_keys.pub`: fallback ADB key (builds run with `WITH_ADB_INSECURE=true`).
 - `tools/build-in-vm.sh DEVICE TARGET...`: the build, as run in the build VM.
 

@@ -43,6 +43,37 @@ PRODUCT_PACKAGES += \
     headless_termux_default_authinfo \
     headless_termux_first_login
 
+# Server upkeep, more ROM boot scripts and a tool: a weekly fstrim (Android
+# only trims when idle and charging), data disks mounted by UUID outside vold
+# (/data/local/disks.conf), and headless_service, which keeps server programs
+# running as supervised services from boot.d scripts.
+PRODUCT_PACKAGES += \
+    headless_boot_40-fstrim \
+    headless_boot_50-data-disks \
+    headless_service
+
+# Apps a server does without: OTA Updater, FM radio, backup, wallpaper apps,
+# Calculator, Recorder (see remove_packages/Android.mk).
+PRODUCT_PACKAGES += \
+    HeadlessRemovePackages
+
+# No Rescue Party. After repeated crashes of a core process it escalates to a
+# reboot into recovery with a factory-reset prompt; on userdebug it only stays
+# off while USB is connected. An unattended server must not end up waiting
+# in recovery.
+PRODUCT_SYSTEM_PROPERTIES += \
+    persist.sys.disable_rescue=true
+
+# Persistent logs: logcatd writes all log buffers (main, system, crash,
+# events, radio, kernel) to /data/misc/logd/logcat* and keeps them across
+# reboots, 64 files of 1 MB at most; 'logpersist.stop' turns it off. The
+# in-memory buffers grow from 256 KB to 2 MB each, for logcat -d.
+PRODUCT_SYSTEM_PROPERTIES += \
+    persist.logd.logpersistd=logcatd \
+    persist.logd.logpersistd.size=64 \
+    persist.logd.logpersistd.rotate_kbytes=1024 \
+    ro.logd.size=2M
+
 # Apps installed on first boot by 10-apps (Termux, its plugins, F-Droid): not
 # in git (Termux alone is 109 MB), copied in by the Mac build script as
 # headless_apps/prebuilt/<package>.apk. Shipped as .apk.bin because

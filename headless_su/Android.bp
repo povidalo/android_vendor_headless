@@ -38,3 +38,11 @@ sh_binary {
     name: "headless_boot",
     src: "headless_boot.sh",
 }
+
+// headless_service: supervised server programs started from boot.d scripts
+// (restarted on exit, logs in /data/local/services), as the Termux user or
+// root.
+sh_binary {
+    name: "headless_service",
+    src: "headless_service.sh",
+}
