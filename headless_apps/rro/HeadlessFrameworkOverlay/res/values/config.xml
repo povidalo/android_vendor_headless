@@ -3,4 +3,13 @@
     <!-- No Doze (DeviceIdleController light and deep idle): a server never
          goes idle. universal8895-common and vendor/lineage set it to true. -->
     <bool name="config_enableAutoPowerModes">false</bool>
+
+    <!-- No PinnerService pinning. It mlock()s framework.jar, services.jar,
+         SystemUI, the graphics libraries (mido's overlay lists 50 files) and
+         the home and camera apps, about 240 MB on mido, for faster UI
+         launches. On a server that memory is better left reclaimable. -->
+    <string-array name="config_defaultPinnerServiceFiles" translatable="false" />
+    <bool name="config_pinnerCameraApp">false</bool>
+    <bool name="config_pinnerHomeApp">false</bool>
+    <bool name="config_pinnerAssistantApp">false</bool>
 </resources>
